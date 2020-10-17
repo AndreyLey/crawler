@@ -2,13 +2,13 @@ const {Queue} = require('../queue/queue');
 const {fetchUrls} = require('../url_fetcher/fetcher');
 const {DBConnetor, DBConnector} = require('../dbconnector/mdbconnector');
 
-const scrapeUrl = async (ws,dbconnector, message, req) =>{
-    const jsonMessage = JSON.parse(message);
-    const {url, max_depth, max_pages} = jsonMessage;
+const scrapeUrl = async (collectionName,ws,dbconnector, message, req, uid) =>{
+    try
+    {
+    const rootPage = JSON.parse(message);
+    const {url, max_depth, max_pages} = rootPage;
 
-    console.log("Scraping  started");
-    const rootPage = {url:url,max_depth:max_depth,max_pages:max_pages};
-    //saveLastScraped(db, true, "", "","",null);
+    console.log(`Scraping  started for UID: ${uid}`);
     console.log(`Root page is: ${rootPage.url}`);
     const urlQueue = new Queue();
     urlQueue.enqueue({'url':url, depth: 0});
@@ -26,23 +26,27 @@ const scrapeUrl = async (ws,dbconnector, message, req) =>{
         if(pageToFetch.depth < max_depth && scraped_pages_counter<max_pages)
         {
             const validLinks = [];
-            const dbresult = dbconnector.findOneScrapedPage(pageToFetch.url);
-            if(dbresult)
-            {
-                console.log(`FROM DB: ${JSON.stringify(dbresult)}`);
-            }
-            const {title, links} = await fetchUrls(pageToFetch.url);
+            const {title, links, isFromDb} = await getLinksAndTitle(dbconnector, collectionName,pageToFetch.url);
             scraped_pages_counter=scraped_pages_counter+1;
-            links.forEach(link => {
-                if(link && link.startsWith("http") && !dbconnector.findOneScrapedPage(link))
+            //Handle links of the page
+            for(const link of links)
+            {
+                if(link && link.startsWith("http"))
                 {
-                    console.log("New link: "+link);
-                    urlQueue.enqueue({'url':link, 'depth': pageToFetch.depth+1});
+                    const dbresult =await dbconnector.findOneScrapedPage(collectionName,link);
+                    if(!dbresult || (dbresult && !(dbresult.uid===uid)))
+                    {
+                        console.log("New link: "+link);
+                        urlQueue.enqueue({'url':link, 'depth': pageToFetch.depth+1});
+                    }
                     validLinks.push(link);
                 }
-            });
+            }
             console.log(title);
-            dbconnector.saveScraping(title,pageToFetch.url,pageToFetch.depth, validLinks);
+            if(!isFromDb)
+            {
+                dbconnector.saveScraping(collectionName,uid,title,pageToFetch.url,pageToFetch.depth, validLinks);
+            }
             ws.send(JSON.stringify({
                 'status':'In progress',
                 'root':rootPage.url,
@@ -52,26 +56,43 @@ const scrapeUrl = async (ws,dbconnector, message, req) =>{
                 'linksCount':validLinks.length}));
         }
         else{
-            ws.send(JSON.stringify({
-                'status':'Finished',
-                'root':rootPage.url,
-                'title':'',
-                'url':'',
-                'depth':'', 
-                'linksCount':''
-                }));
+            ws.send(finishedResult(rootPage.url,'Finished'));
             return;
         }
     }
-    ws.send(JSON.stringify({
-        'status':'Finished',
-        'root':rootPage.url,
+    ws.send(finishedResult(rootPage.url, 'Finished'));
+    return;
+    }
+    catch(err)
+    {
+        console.log(`Error while scraping: ${err}`)
+        ws.send(finishedResult(rootPage.url,err));
+    }
+}
+
+const finishedResult = (url, status) =>{
+
+    return JSON.stringify({
+        'status': status,
+        'root':url,
         'title':'',
         'url':'',
         'depth':'', 
         'linksCount':''
-        }));
-    return;
+        });
+}
+
+const getLinksAndTitle = async(dbconnector,collectionName,url)=>{
+    const dbresult = await dbconnector.findOneScrapedPage(collectionName, url);
+    if(dbresult)
+    {
+        console.log(`FROM DB: ${JSON.stringify(dbresult)}`);
+        dbresult.isFromDb=true;
+        return dbresult;
+    }
+    const fetchResult = await fetchUrls(url);
+    fetchResult.isFromDb = false;
+    return fetchResult;
 }
 
 module.exports.scrapeUrl = scrapeUrl;

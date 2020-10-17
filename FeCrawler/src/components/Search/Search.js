@@ -9,29 +9,6 @@ function Search(props) {
   const [isLoaded, setIsLoaded] = useState(false);
   const [jobLogs, setJobLog] = useState([]);
 
-  // const sendSearchRequest = async(toSend)=>{
-  //   try{
-  //     console.log(toSend);
-  //     var url='';
-  //     console.log(url.concat(props.url,'/url'));
-  //     console.log(JSON.stringify(toSend));
-  //     const response = await fetch(url.concat(props.url,'/url'),
-  //       {method: 'POST',
-  //       headers: {
-  //         'Content-Type': 'application/json'
-  //       },
-  //       body: JSON.stringify(toSend)});
-  //       const result = await response.json();
-
-  //       console.log(result.success + ' ' + result.message);
-  //   }
-  //   catch(error)
-  //   {
-  //     setIsLoaded(true);
-  //     setError(error);
-  //     console.log(error);
-  //   }
-  // }
   useEffect(() => {
 
     props.socket.onopen = () => {
@@ -39,7 +16,7 @@ function Search(props) {
     };
     props.socket.onmessage = (message) => {
       console.log(message);
-      setJobLog([...jobLogs,message.data]);
+      setJobLog([...jobLogs, JSON.parse(message.data)]);
     };
   }, [jobLogs]);
 
@@ -83,7 +60,7 @@ function Search(props) {
       <CrawlerJobs jobLogs={jobLogs}/>
       {/* <ul>
          {jobLogs.map((log,i)=>
-          <li key={i}>{JSON.stringify(log)}</li>)}
+          <li key={i}>{JSON.stringify(log.title)}</li>)}
       </ul> */}
     </div>
     );

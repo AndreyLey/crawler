@@ -6,12 +6,23 @@ function CrawlerJobs(props){
               <table id="leftText">
                 <tbody>
                   <tr>
-                    <th>Title</th>
+                  <th>Root Url</th>
+                  <th>Url</th>
+                  <th>Title</th>
+                  <th>Depth</th>
+                  <th>Links</th>
+                  <th>Status</th>
                   </tr>
                 
                   {props.jobLogs.map((job,i)=>
                     <tr key={i}>
-                      <td>{job}</td>
+                      <td>{job.root}</td>
+                      <td>{job.url}</td>
+                      <td>{job.title}</td>
+                      <td>{job.depth}</td>
+                      <td>{job.linksCount}</td>
+                      <th>{job.status}</th>
+
                     </tr>)}
 
                 </tbody>
